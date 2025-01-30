@@ -5,7 +5,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use MailPoet\DI\ContainerWrapper;
 use MailPoet\Models\CustomField;
+use MailPoet\Entities\CustomFieldEntity;
+use MailPoetVendor\Doctrine\ORM\EntityManager;
 
 class MailpoetCustomField {
 
@@ -56,10 +59,13 @@ class MailpoetCustomField {
 	 */
 	public function mailpoetsignup_cf() {
 
-		$fields  = CustomField::findMany();
+		// Get custom fields and fields type
+		$entityManager = ContainerWrapper::getInstance()->get(EntityManager::class);
+		$CustomFieldRepository = $entityManager->getRepository(CustomFieldEntity::class);
+		$fields = $CustomFieldRepository->findAll();
 		$results = array();
 		foreach ( $fields as $field ) {
-			$results[ 'cf_' . $field->id ] = $field->name;
+			$results[ 'cf_' . $field->getId() ] = $field->getName();
 		}
 
 		if ( ! empty( $results ) ) {

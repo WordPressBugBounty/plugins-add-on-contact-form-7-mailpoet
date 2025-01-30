@@ -19,6 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 use MailPoet\Models\Subscriber;
 use MailPoet\Models\CustomField;    // get all custom field info without value
 use MailPoet\Settings\SettingsController; // get mailpoet settings
+use MailPoet\Entities\SubscriberEntity;
+use MailPoet\Entities\CustomFieldEntity;
+use MailPoet\DI\ContainerWrapper;
+use MailPoetVendor\Doctrine\ORM\EntityManager;
 
 if ( ! class_exists( 'MailPoet_CF7_Submit_Form' ) ) {
 	class MailPoet_CF7_Submit_Form {
@@ -156,11 +160,12 @@ if ( ! class_exists( 'MailPoet_CF7_Submit_Form' ) ) {
 
 									foreach ( $form_data[ $mailpoetsignup_name ] as $selected ) {
 										if ( $selected ) {
-											// Get the existing subscriber's email (if exist) and get the existing segments id
-											$subscriber = Subscriber::findOne( $email );
+                                            $subscriber = null;
+											try{
+												$subscriber = \MailPoet\API\API::MP( 'v1' )->getSubscriber( $email );
+                                            } catch (Exception $exception) {}
 											if ( $subscriber ) {
-												$subscriber->withSubscriptions();
-												$current_lists = $subscriber->subscriptions;
+												$current_lists = $subscriber['subscriptions'];
 
 												foreach ( $current_lists as $key => $value ) {
 													$list_ids[] = $value['segment_id'];
@@ -189,12 +194,15 @@ if ( ! class_exists( 'MailPoet_CF7_Submit_Form' ) ) {
 				}
 
 				// Get custom fields and fields type
-				$fields       = CustomField::findMany();
+				$entityManager = ContainerWrapper::getInstance()->get(EntityManager::class);
+				$CustomFieldRepository = $entityManager->getRepository(CustomFieldEntity::class);
+				$fields = $CustomFieldRepository->findAll();
+
 				$results      = array();
 				$results_type = array();
 				foreach ( $fields as $field ) {
-					$results[ 'cf_' . $field->id ]      = $field->name;
-					$results_type[ 'cf_' . $field->id ] = $field->type;
+					$results[ 'cf_' . $field->getId() ]      = $field->getName();
+					$results_type[ 'cf_' . $field->getId() ] = $field->getType();
 				}
 
 				// Check mailpoet sign-up confirmation
@@ -246,7 +254,18 @@ if ( ! class_exists( 'MailPoet_CF7_Submit_Form' ) ) {
 							// Change subscriber status to subscribed
 							$subscribe_data['status'] = 'subscribed';
 							// Update the status
-							$subscriber = Subscriber::createOrUpdate( $subscribe_data );
+							// $subscriber = Subscriber::createOrUpdate( $subscribe_data );
+							$queryBuilder = $entityManager->createQueryBuilder();
+
+							$queryBuilder->select('s.id, s.email')
+							             ->from(SubscriberEntity::class, 's')
+							             ->where('s.email = :email')
+							             ->setParameter('email', $email);
+
+							$subscriberData = $queryBuilder->getQuery()->getOneOrNullResult();
+                            $subscriber = (object) $subscriberData;
+
+
 							// Now subscribe to the new list
 							try {
 								// If 'mpconsent' form active it will add all lists.
@@ -280,8 +299,10 @@ if ( ! class_exists( 'MailPoet_CF7_Submit_Form' ) ) {
 				if ( isset( $form_data['your-email'] ) ) {
 
 					$subscriber_email = $form_data['your-email'];
-					$subscriber       = Subscriber::findOne( $subscriber_email );
-
+					$subscriber = null;
+                    try {
+                        $subscriber = \MailPoet\API\API::MP( 'v1' )->getSubscriber( $subscriber_email );
+                    }catch (Exception $exception){}
 					if ( $subscriber !== false ) {
 
 						try {
@@ -297,14 +318,9 @@ if ( ! class_exists( 'MailPoet_CF7_Submit_Form' ) ) {
 								$listsIds[] = $list['id'];
 							}
 							// calling unsubscribe function of api
-							$apiResult = \MailPoet\API\API::MP( 'v1' )->unsubscribeFromLists( $subscriber->id, $listsIds );
-							// updating status
-							$subscriber = Subscriber::createOrUpdate(
-								array(
-									'email'  => $subscriber->email,
-									'status' => 'unsubscribed',
-								)
-							);
+							$apiResult = \MailPoet\API\API::MP( 'v1' )->unsubscribeFromLists( $subscriber['id'], $listsIds );
+							// updating status to unsubscribed
+                            $subscriber = \MailPoet\API\API::MP( 'v1' )->unsubscribe( $subscriber['id'] );
 
 						} catch ( Exception $exception ) {
 

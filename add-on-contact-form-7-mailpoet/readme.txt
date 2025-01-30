@@ -5,7 +5,7 @@ Donate link: http://www.tikweb.com/donate/
 Requires at least: 5.3
 Tested up to: 6.5.4
 Requires PHP: 7.2
-Stable tag: 1.3.21
+Stable tag: 1.3.22
 
 Add a MailPoet 3 signup field to your Contact Form 7 forms.
 

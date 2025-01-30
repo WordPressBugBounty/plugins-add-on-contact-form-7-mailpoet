@@ -47,6 +47,10 @@ function fetchedKeyVal() {
 
 
 use MailPoet\Models\Segment;
+use MailPoet\Entities\SegmentEntity;
+use MailPoet\DI\ContainerWrapper;
+use MailPoetVendor\Doctrine\ORM\EntityManager;
+
 
 if ( ! class_exists( 'MailPoet_CF7_Integration' ) ) {
 	class MailPoet_CF7_Integration {
@@ -134,8 +138,18 @@ if ( ! class_exists( 'MailPoet_CF7_Integration' ) ) {
 			}
 
 			$attributes = wpcf7_format_atts( $atts );
+            
 
-			$sagments = Segment::where_not_equal( 'type', Segment::TYPE_WP_USERS )->findArray();
+           $entityManager = ContainerWrapper::getInstance()->get(EntityManager::class);
+           $segmentRepository = $entityManager->getRepository(SegmentEntity::class);
+           $queryBuilder = $segmentRepository->createQueryBuilder('s');
+
+			$sagments = $queryBuilder
+				->select('s')
+				->where($queryBuilder->expr()->neq('s.type', ':type'))
+				->setParameter('type', SegmentEntity::TYPE_WP_USERS)
+				->getQuery()
+				->getArrayResult();
 
 			ob_start(); // Start buffer to return
 			?>
@@ -232,7 +246,16 @@ if ( ! class_exists( 'MailPoet_CF7_Integration' ) ) {
 				return array();
 			}
 
-			$segments = Segment::where_not_equal( 'type', Segment::TYPE_WP_USERS )->findArray();
+			$entityManager = ContainerWrapper::getInstance()->get(EntityManager::class);
+			$segmentRepository = $entityManager->getRepository(SegmentEntity::class);
+			$queryBuilder = $segmentRepository->createQueryBuilder('s');
+
+			$segments = $queryBuilder
+				->select('s')
+				->where($queryBuilder->expr()->neq('s.type', ':type'))
+				->setParameter('type', SegmentEntity::TYPE_WP_USERS)
+				->getQuery()
+				->getArrayResult();
 
 			$ret = array();
 
@@ -286,8 +309,20 @@ if ( ! class_exists( 'MailPoet_CF7_Integration' ) ) {
 							<th scope="row"><?php echo $this->__( 'MailPoet Lists' ); ?></th>
 							<td>
 								<?php
-								$sagments = Segment::where_not_equal( 'type', Segment::TYPE_WP_USERS )
-													->where_not_equal( 'type', Segment::TYPE_WC_USERS )->findArray();
+
+								$entityManager = ContainerWrapper::getInstance()->get(EntityManager::class);
+								$segmentRepository = $entityManager->getRepository(SegmentEntity::class);
+								$queryBuilder = $segmentRepository->createQueryBuilder('s');
+
+								$sagments = $queryBuilder
+									->select('s')
+									->where('s.type != :wpUsersType')
+									->andWhere('s.type != :wcUsersType')
+									->setParameter('wpUsersType', SegmentEntity::TYPE_WP_USERS)
+									->setParameter('wcUsersType', SegmentEntity::TYPE_WC_USERS)
+									->getQuery()
+									->getArrayResult();
+
 								if ( is_array( $sagments ) ) :
 									foreach ( $sagments as $sagment ) :
 										?>
